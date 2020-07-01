@@ -1,2 +1,2 @@
 # Miscellaneous 
-Quick reference files for myself
+Quick reference files
