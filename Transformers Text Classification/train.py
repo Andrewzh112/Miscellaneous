@@ -9,11 +9,11 @@ def train_loop(model, device, epochs, train_loader, test_loader, criterion, opti
         for batch in train_loader:
             batch_losses = []
             data = batch['input'].to(device)
-            colors = batch['embed'].to(device)
+            cats = batch['categorical'].to(device)
             targets = batch['targets'].to(device)
             optimizer.zero_grad()
             output = model(src=data, 
-                           colors=colors)
+                           cat=cats)
             loss = criterion(output, targets.type_as(output))
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.)
@@ -27,9 +27,9 @@ def train_loop(model, device, epochs, train_loader, test_loader, criterion, opti
             batch_losses = []
             data = batch['input'].to(device)
             targets = batch['targets'].to(device)
-            colors = batch['embed'].to(device)
+            cats = batch['categorical'].to(device)
             output = model(src=data, 
-                           colors=colors)
+                           cat=cats)
             loss = criterion(output, targets.type_as(output))
             batch_losses.append(loss.item())
         test_losses.append(np.mean(batch_losses))

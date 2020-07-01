@@ -2,24 +2,33 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.nn import TransformerEncoder, TransformerEncoderLayer
 
 class TransformerModel(nn.Module):
 
-    def __init__(self, ntoken, ninp, max_len, nhead, nhid, nlayers, nclasses, color_tokens, color_size, color_len, dropout=0.5):
+    def __init__(self, ntoken, ninp, max_len, nhead, nhid, nlayers, nclasses, cat_tokens, cat_size, cat_len, dropout=0.5):
         super(TransformerModel, self).__init__()
-        from torch.nn import TransformerEncoder, TransformerEncoderLayer
+        
         self.model_type = 'Transformer'
+
+        # transformer layers
         self.pos_encoder = PositionalEncoding(ninp, dropout)
         encoder_layers = TransformerEncoderLayer(ninp, nhead, nhid, dropout)
         self.transformer_encoder = TransformerEncoder(encoder_layers, nlayers)
         self.encoder = nn.Embedding(ntoken, ninp)
-        self.color_embed = nn.Embedding(color_tokens, color_size)
+
+        # embed extra categorical variables
+        self.cat_embed = nn.Embedding(cat_tokens, cat_size)
+        
+        # final fc
+        self.decoder = nn.Linear(ninp*max_len+cat_size*cat_len, nclasses)
+
+        #dimensions
         self.ninp = ninp
         self.max_len = max_len
-        self.decoder = nn.Linear(ninp*max_len+color_size*color_len, nclasses)
-        self.ntoken = ntoken
-        self.color_size = color_size
-        self.color_len = color_len
+        self.cat_size = cat_size
+        self.cat_len = cat_len
+        
         self.init_weights()
 
     def init_weights(self):
@@ -28,14 +37,18 @@ class TransformerModel(nn.Module):
         self.decoder.bias.data.zero_()
         self.decoder.weight.data.uniform_(-initrange, initrange)
 
-    def forward(self, src, colors):
+    def forward(self, src, cat):
         batch_size = src.size(0)
+
+        # transformer + non-learnable positional encoding
         src = self.encoder(src) * torch.tensor(math.sqrt(self.ninp))
         src = self.pos_encoder(src)
-        output = self.transformer_encoder(src).view(-1, self.ninp*self.max_len)
-        colors = self.color_embed(colors).view(-1, self.color_size*self.color_len)
-        output = torch.cat([output,colors],dim=1)
-        output = self.decoder(output)
+
+        # embed categorical vars and concat with encoded src
+        encoded = self.transformer_encoder(src).view(-1, self.ninp*self.max_len)
+        cat_embed = self.cat_embed(cat).view(-1, self.cat_size*self.cat_len)
+        features = torch.cat([encoded,cat_embed],dim=1)
+        output = self.decoder(features)
         return output
     
 class PositionalEncoding(nn.Module):
